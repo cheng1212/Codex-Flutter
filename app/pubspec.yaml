@@ -1,0 +1,29 @@
+name: codex_flutter
+description: "Flutter Android client for controlling Codex on your own computer via the companion server (protocol v1.0.0)."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  web_socket_channel: ^3.0.0
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.2.2
+  uuid: ^4.0.0
+  mobile_scanner: ^6.0.0
+  # Flutter 3.50 moved the Material widget library out of the SDK into
+  # this official package; package:flutter/material.dart is deprecated.
+  material_ui: ^1.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
