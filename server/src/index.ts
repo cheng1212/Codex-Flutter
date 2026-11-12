@@ -9,6 +9,11 @@ import { CompanionServer } from "./server.js";
  * never binds 0.0.0.0 by default. Workspace roots come from
  * CODEX_FLUTTER_WORKSPACES as a comma list of `id=/abs/path`.
  *
+ * Adapter mode comes from CODEX_FLUTTER_CODEX_MODE (`mock` default,
+ * `real` for the local `codex app-server`). In real mode the server
+ * fails to start if the Codex binary is missing or too old — it never
+ * silently falls back to the mock.
+ *
  * No Codex credentials are involved here: the mock adapter (Phase 1)
  * needs none, and the Phase 2 adapter must keep Codex auth on the
  * desktop (its own `~/.codex/auth.json` / env), never forwarded.
@@ -28,6 +33,6 @@ async function shutdown(signal: string): Promise<void> {
 
 await server.start();
 const { host, port } = server.address();
-console.log(`codex-flutter companion listening on http://${host}:${port} (mock adapter, protocol 1.0.0)`);
+console.log(`codex-flutter companion listening on http://${host}:${port} (${config.codexMode} adapter, protocol 1.0.0)`);
 console.log(`health:  curl http://${host}:${port}/healthz`);
 console.log(`pairing: curl -X POST http://${host}:${port}/api/v1/pairing/code   (loopback only)`);

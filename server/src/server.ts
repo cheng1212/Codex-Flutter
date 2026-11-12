@@ -9,7 +9,9 @@ import { EventBus } from "./modules/events/event-bus.js";
 import { PairingService } from "./modules/auth/pairing.js";
 import { ProjectsService } from "./modules/projects/projects.js";
 import { ApprovalError, ApprovalStore } from "./modules/approvals/approvals.js";
+import type { CodexAdapter } from "./modules/codex/adapter.js";
 import { MockCodexAdapter } from "./modules/codex/mock-adapter.js";
+import { RealCodexAdapter } from "./modules/codex/real-adapter.js";
 import { SessionsService } from "./modules/sessions/sessions.js";
 import { handleWsUpgrade, isLoopbackAddress, type WsConnection } from "./ws.js";
 
@@ -69,6 +71,9 @@ function bearerToken(req: http.IncomingMessage): string | null {
  * - Pairing codes are created loopback-only; tokens are stored hashed
  *   and never logged. Codex auth material is never accepted, stored or
  *   forwarded by this server.
+ * - In real mode the adapter is the RealCodexAdapter (stdio to a local
+ *   `codex app-server`); a missing binary or an outdated CLI version
+ *   fails server startup loudly — it never silently falls back to mock.
  */
 export class CompanionServer {
   private readonly log = new Logger("companion");
@@ -78,7 +83,7 @@ export class CompanionServer {
   private readonly projects: ProjectsService;
   private readonly approvals: ApprovalStore;
   private readonly sessions: SessionsService;
-  private readonly adapter: MockCodexAdapter;
+  private readonly adapter: CodexAdapter;
   private readonly httpServer: http.Server;
   private readonly clients = new Set<WsClient>();
   private readonly sessionClients = new Map<string, Set<WsClient>>();
@@ -90,7 +95,21 @@ export class CompanionServer {
     this.bus = new EventBus(this.store);
     this.pairing = new PairingService(this.store, config.pairingCodeTtlMs);
     this.projects = new ProjectsService(config.workspaces);
-    this.adapter = new MockCodexAdapter(config.mockScript);
+    this.adapter =
+      config.codexMode === "real"
+        ? new RealCodexAdapter({
+            bin: config.codexBin,
+            args: config.codexArgs,
+            versionArgs: config.codexVersionArgs,
+            minVersion: config.codexMinVersion,
+            rpcTimeoutMs: config.codexRpcTimeoutMs,
+            turnIdleTimeoutMs: config.codexTurnIdleTimeoutMs,
+            maxDeltaChars: config.codexMaxDeltaChars,
+            reconnectAttempts: config.codexReconnectAttempts,
+            reconnectDelayMs: config.codexReconnectDelayMs,
+            allowPersistentApprovals: config.allowPersistentApprovals,
+          })
+        : new MockCodexAdapter(config.mockScript);
     this.approvals = new ApprovalStore(
       this.store,
       config.approvalTtlMs,
@@ -170,15 +189,23 @@ export class CompanionServer {
 
     if (method === "GET" && path === "/") {
       res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end(`codex-flutter companion ${SERVER_VERSION} (mock adapter, protocol ${PROTOCOL_VERSION})\n`);
+      res.end(`codex-flutter companion ${SERVER_VERSION} (${this.config.codexMode} adapter, protocol ${PROTOCOL_VERSION})\n`);
       return;
     }
     if (method === "GET" && path === "/healthz") {
+      const codexStatus = this.adapter.status?.() ?? {
+        mode: this.config.codexMode,
+        version: null,
+        connected: false,
+      };
       this.sendJson(res, 200, {
         status: "ok",
         protocolVersion: PROTOCOL_VERSION,
         serverVersion: SERVER_VERSION,
-        codex: { mode: "mock", script: this.config.mockScript },
+        codex: {
+          ...codexStatus,
+          ...(this.config.codexMode === "mock" ? { script: this.config.mockScript } : {}),
+        },
         time: new Date().toISOString(),
       });
       return;
@@ -402,7 +429,7 @@ export class CompanionServer {
             itemId,
             threadId: row.thread_id,
             turnId: row.turn_id,
-            kind: row.kind as "commandExecution" | "fileChange",
+            kind: row.kind as "commandExecution" | "fileChange" | "permissions",
             availableDecisions: JSON.parse(row.available_decisions),
           },
           decision as never,

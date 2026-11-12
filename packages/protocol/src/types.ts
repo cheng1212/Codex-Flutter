@@ -66,13 +66,15 @@ export interface ApprovalRequestedPayload {
   itemId: string;
   threadId: string;
   turnId: string;
-  kind: "commandExecution" | "fileChange";
+  kind: "commandExecution" | "fileChange" | "permissions";
   /** Authoritative: the client may only offer exactly these decisions. */
   availableDecisions: ApprovalDecision[];
   reason?: string;
   command?: string;
   cwd?: string;
   networkApprovalContext?: { host?: string; protocol?: string };
+  /** Permissions kind only: one-line summaries of the requested grants. */
+  permissions?: string[];
   expiresAt?: string;
 }
 

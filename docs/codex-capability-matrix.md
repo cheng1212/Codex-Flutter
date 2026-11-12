@@ -63,7 +63,7 @@
 | 6 | 工具调用摘要事件 | ✅ | app-server `item/started/completed`（`commandExecution`、`fileChange`、`mcpToolCall` 等）；`exec --json` 同类 item 事件 | 第三方资料称 `mcp_tool_call` 的 JSONL 事件不含工具参数/结果（GitHub issue #5028 所述，官方文档未确认）——MVP 只展示摘要，不依赖参数/结果，不受影响 | 是（仅摘要） |
 | 7 | 待办/计划事件 | ✅ | `todo_list` item 类型（官方非交互文档列出；SDK `TodoListItem` 类型亦有；app-server 文档的 item 类型体系一致） | 计划的展示形态（todo 明细字段）以 app-server 生成的 schema 为准，Phase 1 再核对 | 是（映射为 `plan.updated`） |
 | 8 | 取消运行 | ✅（app-server）；⚠️（SDK）；❓（exec） | app-server `turn/interrupt` → `turn/completed`（`status: "interrupted"`），官方文档明确；SDK `TurnOptions.signal: AbortSignal`（类型定义证实，行为未实测） | `exec` 无取消命令；杀进程的退出码/残留会话状态未验证；取消后能否立即在同一线程开新 turn 未验证 | 是（app-server 路径） |
-| 9 | 结构化审批：命令执行 | ✅（app-server）；❌（SDK/exec） | app-server 服务端请求 `item/commandExecution/requestApproval`，字段：`itemId`、`threadId`、`turnId`、可选 `reason`、`command`、`cwd`、`commandActions`、`proposedExecpolicyAmendment`、`networkApprovalContext`、`availableDecisions`；客户端回 `accept` / `acceptForSession` / `decline` / `cancel` / `acceptWithExecpolicyAmendment` / `applyNetworkPolicyAmendment`；随后 `serverRequest/resolved` + `item/completed`（`status: completed\|failed\|declined`）。本地生成的 `CommandExecutionRequestApprovalParams.json` / `…Response.json`（0.164.0-alpha.9）与文档一致 | `availableDecisions` 决定了手机端能给哪些按钮，**必须按请求里带的值渲染，不能写死四个按钮**；`networkApprovalContext` 出现时是"管制网络访问"审批，要单独渲染 host/protocol，不能当普通命令展示；`acceptForSession` 与 execpolicy/network 修正是持久化授权，手机端默认只给"本次批准/拒绝"，其余选项须经审核确认后再开放 | 是（核心，见 §6） |
+| 9 | 结构化审批：命令执行 | ✅（app-server）；❌（SDK/exec） | app-server 服务端请求 `item/commandExecution/requestApproval`，字段：`itemId`、`threadId`、`turnId`、可选 `reason`、`command`、`cwd`、`commandActions`、`proposedExecpolicyAmendment`、`networkApprovalContext`、`availableDecisions`；客户端回 `accept` / `acceptForSession` / `decline` / `cancel` / `acceptWithExecpolicyAmendment` / `applyNetworkPolicyAmendment`；随后 `serverRequest/resolved` + `item/completed`（`status: completed\|failed\|declined`）。本地生成的 `CommandExecutionRequestApprovalParams.json` / `…Response.json`（0.164.0-alpha.9）与文档一致 | `availableDecisions` 决定了手机端能给哪些按钮，**必须按请求里带的值渲染，不能写死四个按钮**；`networkApprovalContext` 出现时是"管制网络访问"审批，要单独渲染 host/protocol，不能当普通命令展示；`acceptForSession` 与 execpolicy/network 修正是持久化授权，手机端默认只给"本次批准/拒绝"，其余选项须经审核确认后再开放。⚠️【2026-11-12 Phase 2 复核】0.164.0-alpha.9 生成的 schema 里审批 params **没有** `availableDecisions` 字段（本表说法来自文档页），adapter 按可选字段处理，缺失时默认 `["accept","decline"]`（权限审批默认 `["accept","decline","cancel"]`）；目标机新版 CLI 上字段是否出现需再核对 | 是（核心，见 §6） |
 | 10 | 结构化审批：文件修改 | ✅（app-server）；❌（SDK/exec） | `item/fileChange/requestApproval`（`itemId`、`threadId`、`turnId`、可选 `reason`、`grantRoot`）；回 `accept` / `acceptForSession` / `decline` / `cancel`；本地 `FileChangeRequestApprovalParams.json` 一致 | `grantRoot` 在 schema 里标注 `[UNSTABLE]`（"是否生效尚不明确"），**不得向用户承诺"批准后整会话可写该目录"** | 是 |
 | 11 | 结构化审批：权限授予 / MCP / 工具提问 | ✅（app-server） | `item/permissions/requestApproval`（内置 `request_permissions` 工具发起；回授予的子集，`scope: "session"` 可跨 turn 持久化）；`mcpServer/elicitation/request`（表单/URL 两种）；`tool/requestUserInput`（1–3 个短问题，`autoResolutionMs` 超时可自动裁决）；MCP 工具审批（`Accept` / `Decline` / `Cancel`，带破坏性标注的必审） | 这三类在 MVP 里**先只做透传展示，不做自动裁决**；`autoResolutionMs` 的自动裁决默认关闭；MCP 相关能力取决于用户本机配置的 MCP server，MVP 默认不启用 | 否（MVP 只接 #9/#10；其余进 Phase 2 评估） |
 | 12 | 审批（TS SDK / exec 路线） | ❌ 无交互审批 | SDK 事件联合类型 `ThreadEvent` 只有 `thread.started` / `turn.*` / `item.*` / `error`，无审批事件、无回调钩子；`exec --json` 官方列出的事件类型同样无审批 | 只能事先设策略：`approvalPolicy: "on-request"|"never"`（SDK 类型里还列出已退役的 `on-failure` / `untrusted`，本机 CLI 0.164 的 `--ask-for-approval` 只剩 `on-request` / `never`——**以 CLI 实测为准，SDK 类型超前/滞后**）；`--full-auto` 已废弃，官方文档明确要求改用 `--sandbox workspace-write` 或 `--approve-for-me`；`--dangerously-bypass-approvals-and-sandbox`（`--yolo` 别名已不在 0.164 help 里）**禁止在 companion server 默认使用** | 否 |
@@ -80,13 +80,35 @@
 
 ## 5. 未验证项与限制清单（Phase 2 前必须逐项消除）
 
+> **Phase 2 stub 验证已做（2026-11-12，fake app-server，仅协议层）**：
+> `server/tests/fake-app-server.mjs` 按 0.164.0-alpha.9 schema 的真实
+> 形状讲 JSON-RPC 往返，`server/tests/real-adapter.test.ts`（`npm test`
+> 28 项全过）覆盖：initialize 握手、版本门（0.164.0-alpha.9 拒绝启动、
+> 缺二进制明确报错）、thread/start（显式 `on-request` +
+> `workspace-write`）、thread/list/resume/read、turn/start 流式 delta
+> （截断）、命令审批 accept/decline、文件审批 accept、权限审批
+> accept（scope 恒为 `turn`）/decline（空授予）、`availableDecisions`
+> 有/无两种情况、清除时代答 decline、turn/interrupt、turn 空闲超时
+> 中断、单次 RPC 超时、启动时进程退出、审批等待中崩溃（turn 判
+> interrupted、审批按已清除处理）+ 重连（`thread/loaded/list` +
+> `thread/resume` 恢复在途线程）、server 真实模式下 healthz 与
+> WS 端到端。**以上只证明 adapter 的协议处理，不证明真实 Codex
+> 行为**。以下仍待在目标机/登录后验证，不得把 stub 验证写成真实验证。
+
 1. **Windows 真机全套复核**：原生安装、版本（以稳定版为准，不用 0.164.0-alpha.9）、`app-server` stdio 探针（同 §3 的脚本在 PowerShell/Windows 下重跑）、沙箱 `mxc`/`elevated`/`unelevated` 在目标机上的实际表现、`windowsSandbox/readiness` 返回值。
 2. **登录后真实 turn**：任一账号登录后，跑一次 `turn/start` 全流程——建线程、发消息、收 `item/agentMessage/delta`、工具调用、一次真实审批请求（命令执行 + 文件修改各一次）并经客户端回 `accept`/`decline`，确认往返时序与 `serverRequest/resolved` 的出现顺序。
 3. **`turn/interrupt` 与 `turn/steer` 的竞态**：取消后立即发新 turn、steer 后立即 interrupt 的行为。
 4. **`model/list` 与模型选择**：探针未收到返回；默认模型、可用模型与账号 plan 的关系未验证。
 5. **`codex remote-control pair` 的协议细节**：配对码格式、有效期、能否被第三方客户端使用；官方文档未说明，需读 `openai/codex` 源码或实测后才能定。
 6. **`exec` 进程级取消**：杀进程后的退出码、会话落盘状态（是否会产生半截 turn）。
-7. **app-server 版本漂移**：`generate-json-schema` 的输出是版本绑定的；companion 必须在启动时校验 `codex --version`，版本不符时拒绝启动并提示升级，禁止静默按旧 schema 跑。
+7. **app-server 版本漂移**：`generate-json-schema` 的输出是版本绑定的；companion 必须在启动时校验 `codex --version`，版本不符时拒绝启动并提示升级，禁止静默按旧 schema 跑。**Phase 2 已实现该校验**（默认最低 `0.166.0`，可配置常量，不把 0.164 写死）；但以下两点仍待目标机复核：
+   - 审批 params 的 `availableDecisions` 字段：官方文档称有，但
+     0.164.0-alpha.9 生成的 schema 里**没有该字段**。adapter 已按
+     可选字段处理（有则用，没有则用安全默认值），新版 CLI 上字段
+     是否出现、值域是否与文档一致，需在目标机上核对。
+   - 本机 `codex-cli 0.164.0-alpha.9` 低于默认最低版本 `0.166.0`，
+     因此本机跑 `real` 模式会被版本门拒绝——这是预期行为，不是 bug；
+     真实验证必须在装有 ≥0.166.0 稳定版的 Windows 目标机上做。
 
 ## 6. 最小可行的 CodexAdapter 契约草案（要点，非实现）
 

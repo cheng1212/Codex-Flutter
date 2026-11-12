@@ -20,9 +20,13 @@ import type { EventBus } from "../events/event-bus.js";
  * - item.completed command_execution / file_change -> tool.completed
  * - item.completed todo_list  -> plan.updated
  * - turn.completed            -> session.status {status}
- * - item/commandExecution|fileChange/requestApproval -> approval.requested
- *   (registered in ApprovalStore first, so a response can only arrive
- *   after the request exists server-side)
+ * - item/commandExecution|fileChange|permissions/requestApproval
+ *   -> approval.requested (registered in ApprovalStore first, so a
+ *   response can only arrive after the request exists server-side)
+ * - plan.updated              -> plan.updated {summary}
+ * - session.error             -> session.error {message}
+ * - approval.cleared          -> the app-server resolved an approval
+ *   request itself; the store clears it so the phone can never answer it
  */
 
 export interface SessionInfo {
@@ -95,9 +99,15 @@ export class SessionsService {
         break;
       }
       case "item.commandExecution/requestApproval":
-      case "item.fileChange/requestApproval": {
+      case "item.fileChange/requestApproval":
+      case "item.permissions/requestApproval": {
         if (!sessionId) break;
-        const kind = e.kind === "item.commandExecution/requestApproval" ? "commandExecution" : "fileChange";
+        const kind =
+          e.kind === "item.commandExecution/requestApproval"
+            ? "commandExecution"
+            : e.kind === "item.fileChange/requestApproval"
+              ? "fileChange"
+              : "permissions";
         this.approvals.register({
           itemId: e.itemId ?? "",
           sessionId,
@@ -119,7 +129,23 @@ export class SessionsService {
           ...(e.command ? { command: e.command } : {}),
           ...(e.cwd ? { cwd: e.cwd } : {}),
           ...(e.networkApprovalContext ? { networkApprovalContext: e.networkApprovalContext } : {}),
+          ...(e.permissions ? { permissions: e.permissions } : {}),
         });
+        break;
+      }
+      case "plan.updated": {
+        if (!sessionId) break;
+        this.bus.publish(sessionId, "plan.updated", { turnId: e.turnId, summary: e.summary ?? "plan updated" });
+        break;
+      }
+      case "session.error": {
+        if (!sessionId) break;
+        this.bus.publish(sessionId, "session.error", { turnId: e.turnId, message: e.summary ?? "codex error" });
+        break;
+      }
+      case "approval.cleared": {
+        if (!sessionId) break;
+        this.approvals.clearOne(e.itemId ?? "", e.reason ?? "cleared by codex");
         break;
       }
     }

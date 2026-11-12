@@ -46,7 +46,7 @@ export interface PendingApproval {
   sessionId: string;
   threadId: string;
   turnId: string;
-  kind: "commandExecution" | "fileChange";
+  kind: "commandExecution" | "fileChange" | "permissions";
   availableDecisions: ApprovalDecision[];
 }
 
@@ -108,6 +108,16 @@ export class ApprovalStore {
       }
     }
     return cleared;
+  }
+
+  /** Clear a single pending approval (e.g. the app-server resolved the
+   * request itself via `serverRequest/resolved` before we answered). */
+  clearOne(itemId: string, reason: string): boolean {
+    const row = this.store.getApproval(itemId);
+    if (!row || row.status !== "pending") return false;
+    this.store.resolveApproval(itemId, "cleared", reason);
+    this.onCleared(itemId, reason);
+    return true;
   }
 
   /** Clear all pending approvals for a session (client disconnected). */

@@ -3,6 +3,7 @@ import type {
   ApprovalRequest,
   CodexAdapter,
   CodexEvent,
+  CodexStatus,
   ThreadSummary,
   TurnHandle,
 } from "./adapter.js";
@@ -60,6 +61,10 @@ export class MockCodexAdapter implements CodexAdapter {
 
   on(_event: "codex-event", cb: (e: CodexEvent) => void): void {
     this.listeners.push(cb);
+  }
+
+  status(): CodexStatus {
+    return { mode: "mock", version: null, connected: this.started };
   }
 
   private emit(e: CodexEvent): void {

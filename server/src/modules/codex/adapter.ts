@@ -2,7 +2,7 @@ import type { ApprovalDecision } from "../../../../packages/protocol/src/types.j
 
 /**
  * CodexAdapter contract (Phase 0 matrix §6), implemented by the mock in
- * this phase and by the real app-server adapter in Phase 2.
+ * Phase 1 and by the real app-server adapter in Phase 2.
  *
  * Route: `codex app-server` over stdio (JSON-RPC 2.0). The TS SDK / `exec`
  * routes are deliberately NOT in this interface: they have no structured
@@ -38,7 +38,27 @@ export type CodexEventKind =
   | "item.completed"
   | "turn.completed"
   | "item.commandExecution/requestApproval"
-  | "item.fileChange/requestApproval";
+  | "item.fileChange/requestApproval"
+  | "item.permissions/requestApproval"
+  /** `turn/plan/updated` notification: plan summary only. */
+  | "plan.updated"
+  /** `error` notification, or an adapter-level failure (e.g. process crash). */
+  | "session.error"
+  /**
+   * Adapter-internal: the app-server cleared a server-initiated approval
+   * request without an answer (`serverRequest/resolved` for a request we
+   * had not answered). The phone must never answer it afterwards.
+   */
+  | "approval.cleared";
+
+/** Adapter health, reported by `GET /healthz` via `codex`. */
+export interface CodexStatus {
+  mode: "mock" | "real";
+  /** CLI version from `codex --version`; null for the mock. */
+  version: string | null;
+  /** True while the underlying Codex process is up and initialized. */
+  connected: boolean;
+}
 
 /** Raw app-server-shaped event, before mapping to the companion protocol. */
 export interface CodexEvent {
@@ -60,18 +80,25 @@ export interface CodexEvent {
   reason?: string;
   availableDecisions?: ApprovalDecision[];
   networkApprovalContext?: { host?: string; protocol?: string };
+  /**
+   * Permissions approval only: one-line summaries of the requested
+   * grants (e.g. `fs write /path`, `network enabled`). No raw profile
+   * content beyond paths/hosts the user must see to decide.
+   */
+  permissions?: string[];
 }
 
 export interface ApprovalRequest {
   itemId: string;
   threadId: string;
   turnId: string;
-  kind: "commandExecution" | "fileChange";
+  kind: "commandExecution" | "fileChange" | "permissions";
   availableDecisions: ApprovalDecision[];
   command?: string;
   cwd?: string;
   reason?: string;
   networkApprovalContext?: { host?: string; protocol?: string };
+  permissions?: string[];
 }
 
 export interface CodexAdapter {
@@ -88,4 +115,6 @@ export interface CodexAdapter {
   /** Called by the server when a pending approval expired / was cleared. */
   cancelPendingApproval(itemId: string, reason: string): void;
   on(event: "codex-event", cb: (e: CodexEvent) => void): void;
+  /** Health for `/healthz`; optional so older adapters keep working. */
+  status?(): CodexStatus;
 }
