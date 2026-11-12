@@ -151,6 +151,26 @@ docs/
 - [CloudCLI](https://github.com/cheng1212/CloudCLI)：自托管 Web 控制台，包含会话、编辑器、终端、Git 和任务看板。
 - [Claude-Flutter](https://github.com/cheng1212/Claude-Flutter)：Flutter Android + 桌面 companion server 的远程 agent 控制项目。本项目借鉴其分层和移动端交互思路，Codex 接入必须单独验证。
 
+## 实现状态（2026-11-12，Phase 0–4 已完成，未分批等审、一次性提交）
+
+- **Phase 0**：`docs/codex-capability-matrix.md`——主路线定为
+  `codex app-server`（JSON-RPC）；结构化审批只在 app-server 有，
+  exec/TS SDK 无审批事件。
+- **Phase 1**：`packages/protocol/`（JSON Schema v1.0.0）+
+  `server/`（配对认证、REST+WS、序号/重连补齐、SQLite、mock
+  CodexAdapter，契约测试 13/13）。
+- **Phase 2**：`server/src/modules/codex/real-adapter.ts`（stdio 拉
+  `codex app-server`，版本门、审批配对、超时/崩溃重连），只经过
+  本地 fake app-server stub 验证（`npm test` 28/28）；登录后真实
+  turn、Windows 沙箱等仍是目标机门槛，见矩阵 §5。
+- **Phase 3**：`app/`（Flutter 3.50.0，`dart analyze` 零问题、
+  `flutter test` 35/35；debug APK 未构建，本机无 Android SDK）。
+- **Phase 4**：`docs/threat-model.md`、`docs/setup-windows-android.md`、
+  `docs/e2e-verification.md`（本地已跑过的验证与真机待补清单）。
+
+安装与启动见 `docs/setup-windows-android.md`；协议见
+`docs/protocol.md`；威胁模型见 `docs/threat-model.md`。
+
 ## License
 
 License 暂未确定。实现开始前由仓库维护者选定；不要默认复制参考仓库的许可证或代码。
