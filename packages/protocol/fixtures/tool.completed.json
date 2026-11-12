@@ -1,0 +1,1 @@
+{"eventId":"evt_01JTOOLCOMP","payload":{"itemId":"itm_cmd_01","kind":"commandExecution","status":"completed","summary":"npm test exited 0","turnId":"trn_mock_01"},"protocolVersion":"1.0.0","seq":10,"sessionId":"ses_mock_01","timestamp":"2026-11-12T15:30:04.000Z","type":"tool.completed"}

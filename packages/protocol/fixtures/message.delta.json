@@ -1,0 +1,1 @@
+{"eventId":"evt_01JMSGDELTA","payload":{"delta":"Hello from the mock adapter.","itemId":"itm_msg_01","turnId":"trn_mock_01"},"protocolVersion":"1.0.0","seq":4,"sessionId":"ses_mock_01","timestamp":"2026-11-12T15:30:01.000Z","type":"message.delta"}

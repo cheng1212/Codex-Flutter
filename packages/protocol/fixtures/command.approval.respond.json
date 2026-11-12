@@ -1,0 +1,1 @@
+{"command":"approval.respond","payload":{"decision":"decline","itemId":"itm_approval_01","sessionId":"ses_mock_01"},"requestId":"req_01JAPPRRESP","type":"command"}
